@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const authMiddleware = require('../middleware/authMiddleware'); // opcional
+//const authMiddleware = require('../middleware/authMiddleware'); // opcional
 
 // Lista todos os usuários
 router.get('/', userController.listUsers); // Adicione authMiddleware se quiser proteger

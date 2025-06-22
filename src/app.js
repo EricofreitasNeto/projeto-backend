@@ -47,6 +47,8 @@ const apiRouter = express.Router();
 
 // Rotas públicas (sem autenticação)
 const authRoutes = require('./routes/authRoutes');
+const productOptionRoutes = require('./routes/productOptionRoutes');
+apiRouter.use('/options', productOptionRoutes);
 
 
 // Rotas protegidas (com autenticação JWT)
@@ -54,11 +56,16 @@ const authenticateJWT = require('./middleware/authMiddleware');
 const userRoutes = require('./routes/userRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const productSearchRoutes = require('./routes/productSearchRoutes');
+//const productImageRoutes = require('./routes/imageRoutes');
 
 apiRouter.use('/auth', authRoutes);
 apiRouter.use('/user', authenticateJWT, userRoutes);
-apiRouter.use('/category',  categoryRoutes);
-apiRouter.use('/products',  productRoutes);
+apiRouter.use('/category/search',  categoryRoutes);
+apiRouter.use('/product',  productRoutes);
+apiRouter.use('/product/search',  productSearchRoutes);
+
+//apiRouter.use('/images', productImageRoutes);
 app.use('/v1', apiRouter);
 
 // Prefixo de versão para a API
