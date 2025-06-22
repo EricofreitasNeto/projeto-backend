@@ -57,7 +57,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 
 apiRouter.use('/auth', authRoutes);
 apiRouter.use('/user', authenticateJWT, userRoutes);
-apiRouter.use('/categories',  categoryRoutes);
+apiRouter.use('/category',  categoryRoutes);
 apiRouter.use('/products',  productRoutes);
 app.use('/v1', apiRouter);
 
