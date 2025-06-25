@@ -3,6 +3,7 @@ const path = require('path');
 const { Sequelize, DataTypes } = require('sequelize');
 require('dotenv').config();
 
+
 // Inicializa a conexão com Sequelize
 const sequelize = new Sequelize(
   process.env.DB_NAME,

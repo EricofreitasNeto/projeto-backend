@@ -1,6 +1,223 @@
-const { Product } = require('../models');
+const { Op } = require('sequelize');
+const {
+  Product,
+  ProductCategory,
+  ProductImage,
+  ProductOption,
+  Category
+} = require('../models');
 
-// Listar todos os produtos
+// Função utilitária para formatar produto
+function formatProduct(product) {
+  return {
+    id: product.id,
+    enabled: product.enabled,
+    name: product.name,
+    slug: product.slug,
+    stock: product.stock,
+    description: product.description,
+    price: product.price,
+    price_with_discount: product.price_with_discount,
+    category_ids: product.categories?.map(c => c.id) || [],
+    images: product.images?.map(img => ({
+      id: img.id,
+      content: `https://store.com/media/${product.slug}/${img.path}`
+    })) || [],
+    options: product.options || []
+  };
+}
+
+// Criar produto com relacionamentos
+exports.create = async (req, res) => {
+  try {
+    const {
+      category_ids = [],
+      images = [],
+      options = [],
+      ...productData
+    } = req.body;
+
+    const product = await Product.create(productData);
+
+    if (category_ids.length > 0) {
+      const links = category_ids.map(category_id => ({
+        product_id: product.id,
+        category_id
+      }));
+      await ProductCategory.bulkCreate(links);
+    }
+
+    if (images.length > 0) {
+      const imageRecords = images.map(img => ({
+        product_id: product.id,
+        path: img.path,
+        enabled: img.enabled ?? true
+      }));
+      await ProductImage.bulkCreate(imageRecords);
+    }
+
+    if (options.length > 0) {
+      const optionRecords = options.map(opt => ({
+        product_id: product.id,
+        option_id: opt.option_id,
+        value: opt.value
+      }));
+      await ProductOption.bulkCreate(optionRecords);
+    }
+
+    const full = await Product.findByPk(product.id, {
+      include: [
+        { model: ProductImage, as: 'images' },
+        { model: ProductOption, as: 'options' },
+        {
+          model: Category,
+          as: 'categories',
+          attributes: ['id'],
+          through: { attributes: [] }
+        }
+      ]
+    });
+
+    res.status(201).json({ data: [formatProduct(full)], total: 1, limit: 1, page: 1 });
+  } catch (error) {
+    console.error('[CreateProductError]', error);
+    res.status(400).json({ error: 'Erro ao criar o produto.' });
+  }
+};
+
+// Atualizar produto + categorias
+exports.update = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_ids = [], ...updates } = req.body;
+
+    const product = await Product.findByPk(id);
+    if (!product)
+      return res.status(404).json({ error: 'Produto não encontrado.' });
+
+    await product.update(updates);
+    await ProductCategory.destroy({ where: { product_id: id } });
+
+    if (category_ids.length > 0) {
+      const links = category_ids.map(category_id => ({
+        product_id: id,
+        category_id
+      }));
+      await ProductCategory.bulkCreate(links);
+    }
+
+    const full = await Product.findByPk(id, {
+      include: [
+        { model: ProductImage, as: 'images' },
+        { model: ProductOption, as: 'options' },
+        {
+          model: Category,
+          as: 'categories',
+          attributes: ['id'],
+          through: { attributes: [] }
+        }
+      ]
+    });
+
+    res.json({ data: [formatProduct(full)], total: 1, limit: 1, page: 1 });
+  } catch (error) {
+    console.error('[UpdateProductError]', error);
+    res.status(400).json({ error: 'Erro ao atualizar o produto.' });
+  }
+};
+
+//Obter produto por ID
+exports.getProductById = async (req, res) => {
+  try {
+    const product = await Product.findByPk(req.params.id, {
+      include: [
+        { model: ProductImage, as: 'images' },
+        { model: ProductOption, as: 'options' },
+        {
+        model: Category,
+        as: 'categories',
+        where: { id: { [Op.in]: ids } },
+        required: true
+        }
+      ]
+    });
+
+    if (!product)
+      return res.status(404).json({ error: 'Produto não encontrado' });
+
+    res.json({ data: [formatProduct(product)], total: 1, limit: 1, page: 1 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+//Buscar produtos com filtros
+exports.search = async (req, res) => {
+  try {
+    const {
+      limit = 12,
+      page = 1,
+      fields,
+      match,
+      category_ids,
+      'price-range': priceRange
+    } = req.query;
+
+    const where = {};
+
+    if (match) {
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${match}%` } },
+        { description: { [Op.iLike]: `%${match}%` } }
+      ];
+    }
+
+    if (category_ids) {
+      const ids = category_ids.split(',').map(Number);
+      where.category_ids = { [Op.overlap]: ids };
+    }
+
+    if (priceRange) {
+      const [min, max] = priceRange.split('-').map(Number);
+      where.price = { [Op.between]: [min, max] };
+    }
+
+    const selectedFields = fields ? fields.split(',') : null;
+    const finalLimit = parseInt(limit);
+    const offset = finalLimit === -1 ? undefined : (parseInt(page) - 1) * finalLimit;
+
+    const { rows, count } = await Product.findAndCountAll({
+      where,
+      include: [
+        { model: ProductImage, as: 'images', attributes: ['id', 'path'] },
+        { model: ProductOption, as: 'options' },
+        {
+          model: Category,
+          as: 'categories',
+          attributes: ['id'],
+          through: { attributes: [] }
+        }
+      ],
+      ...(selectedFields ? { attributes: selectedFields } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+      ...(finalLimit !== -1 ? { limit: finalLimit } : {})
+    });
+
+    const data = rows.map(formatProduct);
+
+    res.status(200).json({
+      data,
+      total: count,
+      limit: finalLimit === -1 ? count : finalLimit,
+      page: finalLimit === -1 ? 1 : parseInt(page)
+    });
+  } catch (err) {
+    console.error('[ProductSearchError]', err);
+    res.status(400).json({ error: 'Erro na requisição' });
+  }
+};
+
+//Listar todos (sem include)
 exports.listProducts = async (req, res) => {
   try {
     const products = await Product.findAll();
@@ -10,47 +227,12 @@ exports.listProducts = async (req, res) => {
   }
 };
 
-// Buscar produto por ID
-exports.getProductById = async (req, res) => {
-  try {
-    const product = await Product.findByPk(req.params.id);
-    if (!product) return res.status(404).json({ error: 'Produto não encontrado' });
-    res.json(product);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Criar novo produto
-exports.createProduct = async (req, res) => {
-  try {
-    const product = await Product.create(req.body);
-    res.status(201).json(product);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-// Atualizar produto
-exports.updateProduct = async (req, res) => {
-  try {
-    const [updated] = await Product.update(req.body, {
-      where: { id: req.params.id }
-    });
-    if (!updated) return res.status(404).json({ error: 'Produto não encontrado' });
-
-    const updatedProduct = await Product.findByPk(req.params.id);
-    res.json(updatedProduct);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-// Deletar produto
+//Deletar
 exports.deleteProduct = async (req, res) => {
   try {
     const deleted = await Product.destroy({ where: { id: req.params.id } });
-    if (!deleted) return res.status(404).json({ error: 'Produto não encontrado' });
+    if (!deleted)
+      return res.status(404).json({ error: 'Produto não encontrado' });
 
     res.status(204).end();
   } catch (error) {

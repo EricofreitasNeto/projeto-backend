@@ -1,12 +1,64 @@
 const { Category } = require('../models');
 
-// Listar todas as categorias
 exports.listCategories = async (req, res) => {
   try {
-    const categories = await Category.findAll();
-    res.status(200).json(categories);
+    let {
+      limit = 12,
+      page = 1,
+      fields,
+      use_in_menu
+    } = req.query;
+
+    limit = Number(limit);
+    page = Number(page);
+
+    if (isNaN(limit) || (limit !== -1 && limit < 1)) {
+      return res.status(400).json({ error: 'Parâmetro "limit" inválido' });
+    }
+
+    if (limit !== -1 && (isNaN(page) || page < 1)) {
+      return res.status(400).json({ error: 'Parâmetro "page" inválido' });
+    }
+
+    // Selecionar campos retornados
+    const attributes = fields ? fields.split(',') : undefined;
+
+    // Filtro de uso no menu
+    const where = {};
+    if (use_in_menu !== undefined) {
+      if (use_in_menu !== 'true' && use_in_menu !== 'false') {
+        return res.status(400).json({ error: 'Parâmetro "use_in_menu" deve ser true ou false' });
+      }
+      where.use_in_menu = use_in_menu === 'true';
+    }
+
+    if (limit === -1) {
+      const data = await Category.findAll({ attributes, where });
+      return res.status(200).json({
+        data,
+        total: data.length,
+        limit: -1,
+        page: 1
+      });
+    }
+
+    const offset = (page - 1) * limit;
+    const { rows: data, count: total } = await Category.findAndCountAll({
+      where,
+      attributes,
+      limit,
+      offset
+    });
+
+    res.status(200).json({
+      data,
+      total,
+      limit,
+      page
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Erro ao listar categorias:', error);
+    res.status(500).json({ error: 'Erro interno no servidor' });
   }
 };
 
@@ -21,7 +73,7 @@ exports.getCategoryById = async (req, res) => {
   }
 };
 
-// Criar nova categoria
+// Criar nova categoria 
 exports.createCategory = async (req, res) => {
   try {
     const category = await Category.create(req.body);
@@ -29,8 +81,7 @@ exports.createCategory = async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
-};
-
+}
 // Atualizar categoria
 exports.updateCategory = async (req, res) => {
   try {

@@ -1,6 +1,5 @@
-// controllers/productSearchController.js
 const { Op } = require('sequelize');
-const { Product, ProductImage, Category, Option } = require('../models');
+const { Product, ProductImage, Category, ProductOption } = require('../models');
 
 exports.search = async (req, res) => {
   try {
@@ -24,7 +23,7 @@ exports.search = async (req, res) => {
       ];
     }
 
-    // Filtro por categorias
+    // Filtro por categorias (só válido se usar campo category_ids no model)
     if (category_ids) {
       const ids = category_ids.split(',').map(id => Number(id));
       where.category_ids = { [Op.overlap]: ids };
@@ -36,8 +35,8 @@ exports.search = async (req, res) => {
       where.price = { [Op.between]: [min, max] };
     }
 
-    // Filtro por opções do tipo option[45]=GG,PP
-    const optionFilters = Object.keys(optionsQuery).filter(key => key.startsWith('option['));
+    // Filtro por opções (option[45]=GG,PP)
+    const optionFilters = Object.keys(optionsQuery).filter(key => key.startsWith('ProductOption['));
     const optionConditions = optionFilters.map(key => {
       const optionId = key.match(/option\[(\d+)\]/)?.[1];
       const values = optionsQuery[key].split(',');
@@ -47,9 +46,7 @@ exports.search = async (req, res) => {
       };
     });
 
-    // Campos a serem retornados
     const selectedFields = fields ? fields.split(',') : null;
-
     const finalLimit = parseInt(limit);
     const offset = finalLimit === -1 ? undefined : (parseInt(page) - 1) * finalLimit;
 
@@ -57,20 +54,29 @@ exports.search = async (req, res) => {
       where,
       include: [
         { model: ProductImage, as: 'images', attributes: ['id', 'path'] },
-        { model: Option, as: 'options', required: !!optionFilters.length }
+        { model: ProductOption, as: 'options', required: !!optionFilters.length },
+        { model: Category, as: 'categories', attributes: ['id'], through: { attributes: [] } }
       ],
       ...(selectedFields ? { attributes: selectedFields } : {}),
       ...(offset !== undefined ? { offset } : {}),
       ...(finalLimit !== -1 ? { limit: finalLimit } : {})
     });
 
-    // Formata imagem
     const data = rows.map(product => ({
-      ...product.toJSON(),
+      id: product.id,
+      enabled: product.enabled,
+      name: product.name,
+      slug: product.slug,
+      stock: product.stock,
+      description: product.description,
+      price: product.price,
+      price_with_discount: product.price_with_discount,
+      category_ids: product.categories?.map(c => c.id) || [],
       images: product.images?.map(img => ({
         id: img.id,
         content: `https://store.com/media/${product.slug}/${img.path}`
-      }))
+      })) || [],
+      options: product.options || []
     }));
 
     res.status(200).json({
@@ -83,4 +89,4 @@ exports.search = async (req, res) => {
     console.error('[ProductSearchError]', err);
     res.status(400).json({ error: 'Parâmetros inválidos ou erro na requisição' });
   }
-}
+};

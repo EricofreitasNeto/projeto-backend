@@ -2,19 +2,14 @@ const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
 
-// GET /v1/product/
+// Buscar com filtros (search inteligente)
+router.get('/search', productController.search);
+
+// CRUD básico + categorias
 router.get('/', productController.listProducts);
-
-// GET /v1/product/:id
 router.get('/:id', productController.getProductById);
-
-// POST /v1/product/
-router.post('/', productController.createProduct);
-
-// PUT /v1/product/:id
-router.put('/:id', productController.updateProduct);
-
-// DELETE /v1/product/:id
+router.post('/', productController.create);
+router.put('/:id', productController.update);
 router.delete('/:id', productController.deleteProduct);
 
 module.exports = router;

@@ -56,16 +56,17 @@ const authenticateJWT = require('./middleware/authMiddleware');
 const userRoutes = require('./routes/userRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
-const productSearchRoutes = require('./routes/productSearchRoutes');
-//const productImageRoutes = require('./routes/imageRoutes');
+const ProductCategory = require('./routes/productCategory');
+const productImageRoutes = require('./routes/productImageRoutes');
 
 apiRouter.use('/auth', authRoutes);
+apiRouter.use('/ProductCategory',  ProductCategory);
 apiRouter.use('/user', authenticateJWT, userRoutes);
-apiRouter.use('/category/search',  categoryRoutes);
+apiRouter.use('/category',  categoryRoutes);
 apiRouter.use('/product',  productRoutes);
-apiRouter.use('/product/search',  productSearchRoutes);
+//apiRouter.use('/products/search',  productRoutes);
 
-//apiRouter.use('/images', productImageRoutes);
+apiRouter.use('/images', productImageRoutes);
 app.use('/v1', apiRouter);
 
 // Prefixo de versão para a API

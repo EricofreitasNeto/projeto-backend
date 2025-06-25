@@ -8,7 +8,7 @@ exports.getUserById = async (req, res) => {
       attributes: { exclude: ['password'] } // Não retorna a senha
     });
 
-    if (!user) return res.status(404).json({ error: 'Not Found' });
+    if (!user) return res.status(404).json({ error: 'Not Found - Usuário não encontrado' });
 
     res.status(200).json(user);
   } catch (error) {
@@ -53,11 +53,11 @@ exports.updateUser = async (req, res) => {
       where: { id: req.params.id }
     });
 
-    if (!updated) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (!updated) return res.status(404).json({ error: 'Not Found - Usuário não encontrado' });
 
     res.status(204).end(); // Atualizado com sucesso, sem corpo de resposta
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: 'Unauthorized' });
   }
 };
 
@@ -68,7 +68,7 @@ exports.deleteUser = async (req, res) => {
       where: { id: req.params.id }
     });
 
-    if (!deleted) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (!deleted) return res.status(404).json({ error: 'Not Found - Usuário não encontrado'});
 
     res.status(204).end(); // Deletado com sucesso
   } catch (error) {

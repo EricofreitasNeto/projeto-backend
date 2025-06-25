@@ -7,9 +7,9 @@ const authenticateJWT = require('../middleware/authMiddleware');
 // 🔓 Públicas
 router.get('/', controller.getAll);
 router.get('/:id', controller.getById);
-
+router.post('/',  controller.create);
 // 🔐 Protegidas
-router.post('/', authenticateJWT, controller.create);
+//router.post('/', authenticateJWT, controller.create);
 router.put('/:id', authenticateJWT, controller.update);
 router.delete('/:id', authenticateJWT, controller.remove);
 
