@@ -8,7 +8,7 @@ router.get('/search', productController.search);
 // CRUD básico + categorias
 router.get('/', productController.listProducts);
 router.get('/:id', productController.getProductById);
-router.post('/', productController.create);
+router.post('/', productController.createWithAssets);
 router.put('/:id', productController.update);
 router.delete('/:id', productController.deleteProduct);
 

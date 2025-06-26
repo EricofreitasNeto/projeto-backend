@@ -134,10 +134,10 @@ exports.getProductById = async (req, res) => {
         { model: ProductImage, as: 'images' },
         { model: ProductOption, as: 'options' },
         {
-        model: Category,
-        as: 'categories',
-        where: { id: { [Op.in]: ids } },
-        required: true
+          model: Category,
+          as: 'categories',
+          attributes: ['id'],
+          through: { attributes: [] }
         }
       ]
     });
@@ -149,7 +149,7 @@ exports.getProductById = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-};
+}
 
 //Buscar produtos com filtros
 exports.search = async (req, res) => {
@@ -182,7 +182,15 @@ exports.search = async (req, res) => {
       where.price = { [Op.between]: [min, max] };
     }
 
-    const selectedFields = fields ? fields.split(',') : null;
+      const validProductFields = [
+      'id', 'enabled', 'name', 'slug', 'stock',
+      'description', 'price', 'price_with_discount'
+    ];
+
+    const selectedFields = fields
+      ? fields.split(',').filter(f => validProductFields.includes(f))
+      : null;
+
     const finalLimit = parseInt(limit);
     const offset = finalLimit === -1 ? undefined : (parseInt(page) - 1) * finalLimit;
 
@@ -237,5 +245,62 @@ exports.deleteProduct = async (req, res) => {
     res.status(204).end();
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+exports.createWithAssets = async (req, res) => {
+  try {
+    const {
+      category_ids = [],
+      images = [],
+      options = [],
+      ...productData
+    } = req.body;
+
+    const product = await Product.create(productData);
+
+    // CATEGORIAS
+    if (category_ids.length > 0) {
+      await ProductCategory.bulkCreate(
+        category_ids.map(category_id => ({
+          product_id: product.id,
+          category_id
+        }))
+      );
+    }
+
+    // IMAGENS base64
+    const fs = require('fs');
+    const path = require('path');
+    const crypto = require('crypto');
+    const imagePath = path.join(__dirname, '..', 'public', 'media', product.slug);
+    fs.mkdirSync(imagePath, { recursive: true });
+
+    const imageRecords = images.map(img => {
+      const ext = img.type.split('/')[1] || 'png';
+      const filename = `${crypto.randomUUID()}.${ext}`;
+      const fullPath = path.join(imagePath, filename);
+      fs.writeFileSync(fullPath, Buffer.from(img.content, 'base64'));
+      return { product_id: product.id, path: filename, enabled: true };
+    });
+    await ProductImage.bulkCreate(imageRecords);
+
+    // OPÇÕES
+    const optionRecords = options.map(opt => ({
+      product_id: product.id,
+      title: opt.title,
+      shape: opt.shape ?? 'square',
+      radius: parseInt(opt.radius) || 0,
+      type: opt.type ?? 'text',
+      values: Array.isArray(opt.value || opt.values)
+        ? (opt.value || opt.values).join(',')
+        : ''
+    }));
+    await ProductOption.bulkCreate(optionRecords);
+
+    res.status(201).json({ message: 'Produto com assets criado com sucesso', id: product.id });
+  } catch (error) {
+    console.error('[CreateWithAssetsError]', error);
+    res.status(500).json({ error: 'Erro ao criar produto com imagens e opções' });
   }
 };
